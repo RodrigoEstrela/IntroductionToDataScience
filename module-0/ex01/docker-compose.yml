@@ -2,6 +2,7 @@ version: '3.9'
 
 services:
   db:
+    container_name: db_service
     image: postgres:15.1
     environment:
       - POSTGRES_PASSWORD=mysecretpassword
@@ -11,6 +12,7 @@ services:
       - "5432:5432"
 
   adminer-docker:
+   container_name: adminer_service
    image: adminer:4.8.1
    restart: on-failure
    depends_on:
