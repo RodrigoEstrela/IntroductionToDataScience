@@ -1,25 +1,64 @@
-import pandas as pd
-from sqlalchemy import create_engine, types
+import psycopg2
 
-db_connection = "postgresql://rdas-nev:mysecretpassword@localhost/piscineds"
-engine = create_engine(db_connection)
 
-csv_file_path = "data_2022_oct.csv"
+def import_data(cur, table_name, csv_file_path):
+    """
+    Imports the data from a csv file to a postgresql table
+    """
 
-df = pd.read_csv(csv_file_path)
+    # Create the table if it doesn't exist
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS {} (
+            event_time TIMESTAMP WITHOUT TIME ZONE,
+            event_type VARCHAR(255) NOT NULL,
+            product_id INTEGER,
+            price NUMERIC,
+            user_id BIGINT,
+            user_session TEXT
+            )
+    """.format(table_name))
 
-table_name = csv_file_path.split("/")[-1].split(".")[0]
-df['event_time'] = pd.to_datetime(df['event_time'])
+    # Open the csv file
+    with open(csv_file_path, 'r') as f:
+        cur.copy_expert(
+            "COPY {} FROM STDIN WITH CSV HEADER".format(table_name),
+            f
+        )
+    print(f"Data from {csv_file_path} successfully imported into {table_name} table.")
 
-column_types = {
-    'event_time': types.TIMESTAMP,
-    'event_type': types.VARCHAR,
-    'product_id': types.INTEGER,
-    'price': types.NUMERIC,
-    'user_id': types.BIGINT,
-    'user_session': types.UUID
-}
 
-df.to_sql(table_name, engine, index=False, if_exists='replace', dtype=column_types)
+def main():
+    """
+    Sets db connection
+    Calls import data function
+    Commits changes
+    Closes connection
+    """
 
-print(f"Table '{table_name}' created successfully.")
+    # Connection parameters
+    db_params = {
+        'host': 'localhost',
+        'port': '5432',
+        'database': 'piscineds',
+        'user': 'rdas-nev',
+        'password': 'mysecretpassword'
+    }
+
+    # Csv file path and table name
+    csv_file_path = '../../subject/customer/data_2022_oct.csv'
+    table_name = csv_file_path.split('/')[-1].split('.')[0]
+
+    # Establish a connection to the PostgreSQL database
+    conn = psycopg2.connect(**db_params)
+    cur = conn.cursor()
+
+    # Import data
+    import_data(cur, table_name, csv_file_path)
+
+    # Commit the changes and close the connection
+    conn.commit()
+    conn.close()
+
+
+if __name__ == "__main__":
+    main()
