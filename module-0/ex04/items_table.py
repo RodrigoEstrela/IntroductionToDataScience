@@ -1,40 +1,72 @@
-import os
-import pandas as pd
-from sqlalchemy import create_engine, types
+import psycopg2
 
 
-def create_table(path: str):
+def import_data(cur, table_name, csv_file_path):
     """
-    Creates a sql table based on the csv file provided by path
+    Imports the data from a csv file to a postgresql table
     """
-    db_connection = "postgresql://rdas-nev:mysecretpassword@localhost/piscineds"
-    engine = create_engine(db_connection)
 
-    df = pd.read_csv(path)
+    # Check if the table already exists
+    cur.execute("SELECT EXISTS (SELECT FROM pg_tables WHERE tablename = %s)", (table_name,))
+    if cur.fetchone()[0]:
+        print(f"Table '{table_name}' already exists. Skipping import.")
+        return
 
-    table_name = "items"
+    # Create the table if it doesn't exist
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS {} (
+            product_id INTEGER,
+            category_id BIGINT,
+            category_code TEXT,
+            brand TEXT
+            )
+    """.format(table_name))
 
-    column_types = {
-        'product_id': types.INTEGER,
-        'category_id': types.BIGINT,
-        'category_code': types.String,
-        'brand': types.String
-    }
+    # Open the csv file and import the data into the table
+    with open(csv_file_path, 'r') as f:
+        cur.copy_expert(
+            "COPY {} FROM STDIN WITH CSV HEADER".format(table_name),
+            f
+        )
+    print(f"Data from {csv_file_path} successfully imported into {table_name} table.")
 
-    df.to_sql(table_name, engine, index=False, if_exists='replace', dtype=column_types)
-
-    print(f"Table '{table_name}' created successfully.")
+    # Print the number of rows in the table
+    cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+    row_count = cur.fetchone()[0]
+    print(f"Imported {row_count} rows into {table_name} table.")
 
 
 def main():
     """
-    Gets the csv path
-    Runs the create_table function
+    Sets db connection
+    Calls import data function
+    Commits changes
+    Closes connection
     """
-    directory_path = "item/"
-    file_path = os.path.join(directory_path, "item.csv")
-    create_table(file_path)
+
+    # Connection parameters
+    db_params = {
+        'host': 'localhost',
+        'port': '5432',
+        'database': 'piscineds',
+        'user': 'rdas-nev',
+        'password': 'mysecretpassword'
+    }
+
+    # Csv file path
+    csv_file_path = '../../subject/item/item.csv'
+
+    # Establish a connection to the PostgreSQL database
+    conn = psycopg2.connect(**db_params)
+    cur = conn.cursor()
+
+    # Import data
+    import_data(cur, "items", csv_file_path)
+
+    # Commit the changes and close the connection
+    conn.commit()
+    conn.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
