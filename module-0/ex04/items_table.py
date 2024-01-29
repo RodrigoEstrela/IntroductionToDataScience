@@ -36,6 +36,27 @@ def import_data(cur, table_name, csv_file_path):
     print(f"Imported {row_count} rows into {table_name} table.")
 
 
+def clean_up_data(cur, table_name):
+    """
+    Cleans up the data in a postgresql table
+    """
+
+    # SQL query to delete rows where product_id, category_id, or brand is NULL
+    sql_query = """
+        DELETE FROM {}
+        WHERE product_id IS NULL OR category_id IS NULL OR brand IS NULL
+    """.format(table_name)
+
+    # Execute the SQL query
+    cur.execute(sql_query)
+    print(f"Cleaned up data in {table_name} table.")
+
+    # Print the number of rows in the table
+    cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+    row_count = cur.fetchone()[0]
+    print(f"{row_count} rows now on {table_name} table.")
+
+
 def main():
     """
     Sets db connection
@@ -62,6 +83,9 @@ def main():
 
     # Import data
     import_data(cur, "items", csv_file_path)
+
+    # Clean up data
+    clean_up_data(cur, "items")
 
     # Commit the changes and close the connection
     conn.commit()
